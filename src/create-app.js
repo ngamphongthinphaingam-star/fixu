@@ -146,7 +146,16 @@ function createApp(cfg) {
       res.json({ analysis: result });
     } catch (err) {
       const status = err.name === "TimeoutError" || err.name === "AbortError" ? 504 : (err.status === 429 ? 429 : 502);
-      res.status(status).json({ error: status === 429 ? "โควตา Gemini ชั่วคราวเต็ม กรุณาลองใหม่ภายหลัง" : status === 504 ? "AI ใช้เวลานานเกินไป กรุณาลองใหม่" : "วิเคราะห์ไม่สำเร็จในขณะนี้ ลองอีกครั้งหรือส่งเรื่องโดยไม่ใช้ AI" });
+      const message = status === 429
+        ? "โควตา Gemini ชั่วคราวเต็ม กรุณาลองใหม่ภายหลัง"
+        : status === 504
+          ? "AI ใช้เวลานานเกินไป กรุณาลองใหม่"
+          : err.status === 401 || err.status === 403
+            ? "Gemini ปฏิเสธ API Key หรือโปรเจกต์นี้ยังไม่มีสิทธิ์ใช้โมเดล กรุณาตรวจ GEMINI_API_KEY และสถานะ Free tier ใน AI Studio"
+            : err.status === 400
+              ? "คำขอ Gemini ไม่ถูกต้อง กรุณาตรวจชื่อโมเดลและรูปแบบ API แล้วลองใหม่"
+              : "วิเคราะห์ไม่สำเร็จในขณะนี้ ลองอีกครั้งหรือส่งเรื่องโดยไม่ใช้ AI";
+      res.status(status).json({ error: message });
     }
   });
 

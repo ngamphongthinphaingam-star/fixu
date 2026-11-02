@@ -32,7 +32,11 @@ async function analyzeIncident({ apiKey, model = "gemini-3.1-flash-lite", type, 
 
   const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+    headers: {
+      "content-type": "application/json",
+      "x-goog-api-key": apiKey,
+      "Api-Revision": "2026-05-20",
+    },
     body: JSON.stringify({
       model,
       input,
@@ -42,13 +46,28 @@ async function analyzeIncident({ apiKey, model = "gemini-3.1-flash-lite", type, 
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    const upstream = data?.error || {};
+    // Log provider error metadata only; never log the prompt or API key.
+    console.error("[gemini] request failed", {
+      httpStatus: response.status,
+      status: String(upstream.status || "").slice(0, 80),
+      code: Number.isInteger(upstream.code) ? upstream.code : undefined,
+      message: String(upstream.message || "").slice(0, 240),
+    });
     const err = new Error("บริการ AI ใช้งานไม่ได้ในขณะนี้");
     err.status = response.status;
+    err.providerStatus = String(upstream.status || "");
     throw err;
   }
   let output = data.output_text;
-  if (!output && Array.isArray(data.output)) {
-    output = data.output.flatMap(x => x.content || []).find(x => x.type === "text")?.text;
+  if (!output && Array.isArray(data.steps)) {
+    output = data.steps
+      .filter(step => step.type === "model_output")
+      .flatMap(step => step.content || [])
+      .find(part => part.type === "text")?.text;
+  }
+  if (!output && Array.isArray(data.outputs)) {
+    output = data.outputs.find(part => part.type === "text")?.text;
   }
   let result;
   try { result = JSON.parse(output); } catch {
