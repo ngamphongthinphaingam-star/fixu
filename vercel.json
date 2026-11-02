@@ -1,4 +1,5 @@
 {
+  "framework": null,
   "regions": ["sin1"],
   "functions": { "api/index.js": { "maxDuration": 15, "excludeFiles": "node_modules/@electric-sql/**" } },
   "rewrites": [
