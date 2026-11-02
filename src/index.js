@@ -1,0 +1,11 @@
+const { open } = require("./db");
+const { createApp } = require("./app");
+const { makeNotifier } = require("./notify");
+const { buildConfig } = require("./config");
+const e = process.env;
+(async () => {
+  const cfg = buildConfig(e);
+  cfg.db = await open({ url: e.DATABASE_URL, dir: e.DATABASE_URL ? undefined : (e.PGLITE_DIR || "./data/pg") });
+  cfg.notify = makeNotifier({ smtpUrl: e.SMTP_URL, mailFrom: e.MAIL_FROM || "FixU <no-reply@example.ac.th>" });
+  createApp(cfg).listen(Number(e.PORT || 3000), () => console.log("FixU พร้อมที่พอร์ต", e.PORT || 3000, "| โหมด:", cfg.authMode, "| ฐานข้อมูล:", e.DATABASE_URL ? "PostgreSQL (Supabase)" : "PGlite (เพื่อพัฒนาเท่านั้น)"));
+})().catch(err => { console.error("เริ่มระบบไม่สำเร็จ:", err.message); process.exit(1); });

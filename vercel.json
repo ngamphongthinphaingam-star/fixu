@@ -1,0 +1,14 @@
+{
+  "regions": ["sin1"],
+  "functions": { "api/index.js": { "maxDuration": 15, "excludeFiles": "node_modules/@electric-sql/**" } },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/healthz", "destination": "/api" }
+  ],
+  "headers": [{ "source": "/(.*)", "headers": [
+    { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" },
+    { "key": "X-Content-Type-Options", "value": "nosniff" },
+    { "key": "Referrer-Policy", "value": "no-referrer" },
+    { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" }
+  ] }]
+}

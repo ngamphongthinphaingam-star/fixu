@@ -1,0 +1,39 @@
+-- FixU: วางไฟล์นี้ใน Supabase > SQL Editor แล้วกด Run (รันซ้ำได้ ปลอดภัย)
+
+CREATE TABLE IF NOT EXISTS users(
+  id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, name TEXT,
+  role TEXT NOT NULL DEFAULT 'user' CHECK(role IN('user','staff','admin')),
+  active BOOLEAN NOT NULL DEFAULT TRUE, created_at BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS tickets(
+  id TEXT PRIMARY KEY, owner_id TEXT NOT NULL REFERENCES users(id),
+  type TEXT NOT NULL, building TEXT NOT NULL, room TEXT NOT NULL, description TEXT NOT NULL,
+  status INTEGER NOT NULL DEFAULT 0, assignee INTEGER NOT NULL DEFAULT 0,
+  created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL, closed_at BIGINT,
+  resolution TEXT, reopen_count INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS ix_t_owner ON tickets(owner_id, created_at);
+CREATE INDEX IF NOT EXISTS ix_t_status ON tickets(status);
+CREATE TABLE IF NOT EXISTS ticket_images(
+  id TEXT PRIMARY KEY, ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  mime TEXT NOT NULL, data BYTEA NOT NULL, created_at BIGINT NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_i_ticket ON ticket_images(ticket_id);
+CREATE TABLE IF NOT EXISTS ticket_history(
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL, status INTEGER NOT NULL, actor_id TEXT, actor_name TEXT, note TEXT, created_at BIGINT NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_h_ticket ON ticket_history(ticket_id);
+CREATE TABLE IF NOT EXISTS notifications(
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id),
+  ticket_id TEXT, message TEXT NOT NULL, created_at BIGINT NOT NULL, is_read BOOLEAN NOT NULL DEFAULT FALSE);
+CREATE INDEX IF NOT EXISTS ix_n_user ON notifications(user_id, id);
+CREATE TABLE IF NOT EXISTS audit_logs(
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, actor_id TEXT, actor_email TEXT, action TEXT NOT NULL,
+  target TEXT, detail TEXT, ip TEXT, created_at BIGINT NOT NULL);
+CREATE TABLE IF NOT EXISTS rate_limits(key TEXT PRIMARY KEY, hits INTEGER NOT NULL, reset_at BIGINT NOT NULL);
+-- Supabase เปิดตารางใน schema public ผ่าน REST API โดยอัตโนมัติ: เปิด RLS โดยไม่มี policy = ปิดไม่ให้เข้าผ่านช่องทางนั้น
+-- (เซิร์ฟเวอร์ของเราเชื่อมด้วยบทบาท postgres จึงไม่ถูกกระทบ)
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ticket_images ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ticket_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;

@@ -1,0 +1,31 @@
+{
+ "name": "fixu",
+ "version": "1.0.0",
+ "description": "FixU - ระบบแจ้งและติดตามปัญหาภายในมหาวิทยาลัย",
+ "main": "src/index.js",
+ "license": "UNLICENSED",
+ "scripts": {
+  "start": "node src/index.js",
+  "test": "node --test test/api.test.js",
+  "backup": "node scripts/backup.js",
+  "purge": "node scripts/purge.js",
+  "pilot": "node --env-file=.env src/index.js",
+  "migrate": "node scripts/migrate.js",
+  "dev": "node --env-file=.env src/index.js"
+ },
+ "engines": {
+  "node": "22.x"
+ },
+ "dependencies": {
+  "cookie-parser": "^1.4.7",
+  "express": "^5.3.0",
+  "express-rate-limit": "^8.7.1",
+  "helmet": "^8.3.0",
+  "jsonwebtoken": "^9.0.3",
+  "nodemailer": "^10.2.1",
+  "pg": "^8.23.1"
+ },
+ "devDependencies": {
+  "@electric-sql/pglite": "^0.5.13"
+ }
+}
