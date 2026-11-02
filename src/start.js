@@ -1,5 +1,5 @@
 const { open } = require("./db");
-const { createApp } = require("./app");
+const { createApp } = require("./create-app");
 const { makeNotifier } = require("./notify");
 const { buildConfig } = require("./config");
 const e = process.env;

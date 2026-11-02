@@ -2,16 +2,16 @@
  "name": "fixu",
  "version": "1.0.0",
  "description": "FixU - ระบบแจ้งและติดตามปัญหาภายในมหาวิทยาลัย",
- "main": "src/index.js",
+ "main": "src/start.js",
  "license": "UNLICENSED",
  "scripts": {
-  "start": "node src/index.js",
+  "start": "node src/start.js",
   "test": "node --test test/api.test.js",
   "backup": "node scripts/backup.js",
   "purge": "node scripts/purge.js",
-  "pilot": "node --env-file=.env src/index.js",
+  "pilot": "node --env-file=.env src/start.js",
   "migrate": "node scripts/migrate.js",
-  "dev": "node --env-file=.env src/index.js"
+  "dev": "node --env-file=.env src/start.js"
  },
  "engines": {
   "node": "22.x"

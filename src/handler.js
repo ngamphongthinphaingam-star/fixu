@@ -1,5 +1,5 @@
 // จุดเข้าสำหรับ Vercel (serverless): สร้างแอปครั้งเดียวต่ออินสแตนซ์ แล้วส่งคำขอให้ Express
-const { buildConfig } = require("./config"), { open } = require("./db"), { createApp } = require("./app"), { makeNotifier } = require("./notify");
+const { buildConfig } = require("./config"), { open } = require("./db"), { createApp } = require("./create-app"), { makeNotifier } = require("./notify");
 let appP = null;
 async function init() {
   const e = process.env, cfg = buildConfig(e);
