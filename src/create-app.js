@@ -193,8 +193,9 @@ function createApp(cfg) {
     const to = Number(req.body?.status);
     if (!Number.isInteger(to) || to !== t.status + 1 || to > 3) return res.status(400).json({ error: "ลำดับสถานะไม่ถูกต้อง" });
     const a = Number(req.body?.assignee ?? t.assignee);
-    if (!Number.isInteger(a) || a < 0 || a > 4) return res.status(400).json({ error: "ผู้รับผิดชอบไม่ถูกต้อง" });
-    if (a === 0) return res.status(400).json({ error: "กรุณาเลือกผู้รับผิดชอบก่อนเปลี่ยนสถานะ" });
+    if (!Number.isInteger(a) || a <= 0) return res.status(400).json({ error: "กรุณาเลือกผู้รับผิดชอบก่อนเปลี่ยนสถานะ" });
+    if (a !== Number(t.assignee) && !(await db.q("SELECT id FROM responsibility_categories WHERE id=$1 AND active=TRUE", [a])).length)
+      return res.status(400).json({ error: "หน่วยงานผู้รับผิดชอบไม่ถูกต้องหรือปิดใช้งานแล้ว" });
     const note = clean(req.body?.note, 200, true);
     if (to === 3 && !note) return res.status(400).json({ error: "ต้องบันทึกผลการแก้ไขก่อนปิดงาน" });
     const now = Date.now();
@@ -247,6 +248,81 @@ function createApp(cfg) {
   });
 
   // ---------- ผู้ดูแลระบบ ----------
+  app.get("/api/settings", auth, async (req, res) => {
+    const [departments, rooms] = await Promise.all([
+      db.q("SELECT id,name,active FROM responsibility_categories ORDER BY id"),
+      db.q("SELECT building,room,active FROM room_catalog ORDER BY building,room"),
+    ]);
+    res.json({ departments, rooms });
+  });
+  app.post("/api/admin/departments", auth, need("admin"), async (req, res) => {
+    const name = clean(req.body?.name, 60);
+    if (!name) return res.status(400).json({ error: "กรุณาระบุชื่อหน่วยงาน" });
+    if ((await db.q("SELECT id FROM responsibility_categories WHERE lower(name)=lower($1)", [name])).length)
+      return res.status(409).json({ error: "มีชื่อหน่วยงานนี้แล้ว" });
+    const row = (await db.q("INSERT INTO responsibility_categories(name,active,created_at) VALUES($1,TRUE,$2) RETURNING id,name,active", [name, Date.now()]))[0];
+    await audit(req.user, "settings.department.create", row.id, row.name, req);
+    res.status(201).json({ department: row });
+  });
+  app.put("/api/admin/departments/:id", auth, need("admin"), async (req, res) => {
+    const id = Number(req.params.id), name = clean(req.body?.name, 60), active = req.body?.active !== false;
+    if (!Number.isInteger(id) || id < 1 || !name) return res.status(400).json({ error: "ข้อมูลหน่วยงานไม่ถูกต้อง" });
+    if (!active) {
+      const current = (await db.q("SELECT active FROM responsibility_categories WHERE id=$1", [id]))[0];
+      if (current?.active && Number((await db.q("SELECT COUNT(*)::int AS n FROM responsibility_categories WHERE active=TRUE"))[0]?.n || 0) <= 1)
+        return res.status(400).json({ error: "ต้องเหลือหน่วยงานที่ใช้งานอย่างน้อย 1 รายการ" });
+    }
+    if ((await db.q("SELECT id FROM responsibility_categories WHERE lower(name)=lower($1) AND id<>$2", [name, id])).length)
+      return res.status(409).json({ error: "มีชื่อหน่วยงานนี้แล้ว" });
+    const row = (await db.q("UPDATE responsibility_categories SET name=$1,active=$2 WHERE id=$3 RETURNING id,name,active", [name, active, id]))[0];
+    if (!row) return res.status(404).json({ error: "ไม่พบหน่วยงาน" });
+    await audit(req.user, "settings.department.update", id, `${row.name} (${active ? "active" : "inactive"})`, req);
+    res.json({ department: row });
+  });
+  app.delete("/api/admin/departments/:id", auth, need("admin"), async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: "รหัสหน่วยงานไม่ถูกต้อง" });
+    const current = (await db.q("SELECT active FROM responsibility_categories WHERE id=$1", [id]))[0];
+    if (!current) return res.status(404).json({ error: "ไม่พบหน่วยงาน" });
+    if (current.active && Number((await db.q("SELECT COUNT(*)::int AS n FROM responsibility_categories WHERE active=TRUE"))[0]?.n || 0) <= 1)
+      return res.status(400).json({ error: "ต้องเหลือหน่วยงานที่ใช้งานอย่างน้อย 1 รายการ" });
+    const row = (await db.q("UPDATE responsibility_categories SET active=FALSE WHERE id=$1 RETURNING id,name", [id]))[0];
+    if (!row) return res.status(404).json({ error: "ไม่พบหน่วยงาน" });
+    await audit(req.user, "settings.department.deactivate", id, row.name, req);
+    res.json({ ok: true });
+  });
+  app.post("/api/admin/rooms", auth, need("admin"), async (req, res) => {
+    const building = clean(req.body?.building, 1), room = clean(req.body?.room, 40);
+    if (!BUILDINGS.includes(building) || !room) return res.status(400).json({ error: "กรุณาเลือกอาคารและระบุเลขห้อง" });
+    const existing = (await db.q("SELECT room,active FROM room_catalog WHERE building=$1 AND lower(room)=lower($2)", [building, room]))[0];
+    if (existing?.active) return res.status(409).json({ error: "มีเลขห้องนี้ในอาคารแล้ว" });
+    if (existing) {
+      await db.q("UPDATE room_catalog SET active=TRUE WHERE building=$1 AND room=$2", [building, existing.room]);
+      await audit(req.user, "settings.room.restore", `${building}/${existing.room}`, null, req);
+      return res.json({ ok: true, restored: true });
+    }
+    await db.q("INSERT INTO room_catalog(building,room,active,created_at) VALUES($1,$2,TRUE,$3)", [building, room, Date.now()]);
+    await audit(req.user, "settings.room.create", `${building}/${room}`, null, req);
+    res.status(201).json({ ok: true });
+  });
+  app.put("/api/admin/rooms", auth, need("admin"), async (req, res) => {
+    const building = clean(req.body?.building, 1), room = clean(req.body?.room, 40), newRoom = clean(req.body?.newRoom, 40);
+    if (!BUILDINGS.includes(building) || !room || !newRoom) return res.status(400).json({ error: "ข้อมูลเลขห้องไม่ถูกต้อง" });
+    if (room !== newRoom && (await db.q("SELECT room FROM room_catalog WHERE building=$1 AND lower(room)=lower($2) AND room<>$3", [building, newRoom, room])).length)
+      return res.status(409).json({ error: "มีเลขห้องใหม่นี้ในอาคารแล้ว" });
+    const row = (await db.q("UPDATE room_catalog SET room=$1,active=TRUE WHERE building=$2 AND room=$3 RETURNING room", [newRoom, building, room]))[0];
+    if (!row) return res.status(404).json({ error: "ไม่พบเลขห้อง" });
+    await audit(req.user, "settings.room.rename", `${building}/${room}`, newRoom, req);
+    res.json({ ok: true });
+  });
+  app.delete("/api/admin/rooms", auth, need("admin"), async (req, res) => {
+    const building = clean(req.body?.building, 1), room = clean(req.body?.room, 40);
+    if (!BUILDINGS.includes(building) || !room) return res.status(400).json({ error: "ข้อมูลเลขห้องไม่ถูกต้อง" });
+    const row = (await db.q("UPDATE room_catalog SET active=FALSE WHERE building=$1 AND room=$2 RETURNING room", [building, room]))[0];
+    if (!row) return res.status(404).json({ error: "ไม่พบเลขห้อง" });
+    await audit(req.user, "settings.room.deactivate", `${building}/${room}`, null, req);
+    res.json({ ok: true });
+  });
   app.get("/api/users", auth, need("admin"), async (req, res) =>
     res.json({ users: await db.q("SELECT id,email,name,role,active FROM users ORDER BY created_at") }));
   app.put("/api/users/role", auth, need("admin"), async (req, res) => {
