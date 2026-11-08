@@ -249,11 +249,20 @@ function createApp(cfg) {
 
   // ---------- ผู้ดูแลระบบ ----------
   app.get("/api/settings", auth, async (req, res) => {
-    const [departments, rooms] = await Promise.all([
+    const [departments, rooms, buildings] = await Promise.all([
       db.q("SELECT id,name,active FROM responsibility_categories ORDER BY id"),
       db.q("SELECT building,room,active FROM room_catalog ORDER BY building,room"),
+      db.q("SELECT building,name FROM building_catalog ORDER BY building"),
     ]);
-    res.json({ departments, rooms });
+    res.json({ departments, rooms, buildings });
+  });
+  app.put("/api/admin/buildings/:code", auth, need("admin"), async (req, res) => {
+    const code = clean(req.params.code, 1), name = clean(req.body?.name, 60);
+    if (!BUILDINGS.includes(code) || !name) return res.status(400).json({ error: "กรุณาระบุเลขหรือชื่ออาคารให้ถูกต้อง" });
+    const row = (await db.q("UPDATE building_catalog SET name=$1,updated_at=$2 WHERE building=$3 RETURNING building,name", [name, Date.now(), code]))[0];
+    if (!row) return res.status(404).json({ error: "ไม่พบอาคาร" });
+    await audit(req.user, "settings.building.update", code, row.name, req);
+    res.json({ building: row });
   });
   app.post("/api/admin/departments", auth, need("admin"), async (req, res) => {
     const name = clean(req.body?.name, 60);

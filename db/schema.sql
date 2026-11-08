@@ -20,6 +20,11 @@ SELECT setval(pg_get_serial_sequence('responsibility_categories','id'), GREATEST
 CREATE TABLE IF NOT EXISTS room_catalog(
   building TEXT NOT NULL CHECK(building IN('A','B','C','D')), room TEXT NOT NULL,
   active BOOLEAN NOT NULL DEFAULT TRUE, created_at BIGINT NOT NULL, PRIMARY KEY(building,room));
+CREATE TABLE IF NOT EXISTS building_catalog(
+  building TEXT PRIMARY KEY CHECK(building IN('A','B','C','D')), name TEXT NOT NULL, updated_at BIGINT NOT NULL);
+INSERT INTO building_catalog(building,name,updated_at) VALUES
+  ('A','อาคาร 1(A)',0),('B','อาคาร 2(B)',0),('C','อาคาร 3(C)',0),('D','อาคาร 4(D)',0)
+ON CONFLICT(building) DO NOTHING;
 INSERT INTO room_catalog(building,room,active,created_at) VALUES
   ('A','A1',TRUE,0),('A','A2',TRUE,0),('A','A3',TRUE,0),('A','A4',TRUE,0),
   ('B','B1',TRUE,0),('B','B2',TRUE,0),('B','B3',TRUE,0),
@@ -54,3 +59,4 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE responsibility_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE room_catalog ENABLE ROW LEVEL SECURITY;
+ALTER TABLE building_catalog ENABLE ROW LEVEL SECURITY;
