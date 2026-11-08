@@ -327,9 +327,9 @@ function createApp(cfg) {
   app.delete("/api/admin/rooms", auth, need("admin"), async (req, res) => {
     const building = clean(req.body?.building, 1), room = clean(req.body?.room, 40);
     if (!BUILDINGS.includes(building) || !room) return res.status(400).json({ error: "ข้อมูลเลขห้องไม่ถูกต้อง" });
-    const row = (await db.q("UPDATE room_catalog SET active=FALSE WHERE building=$1 AND room=$2 RETURNING room", [building, room]))[0];
+    const row = (await db.q("DELETE FROM room_catalog WHERE building=$1 AND room=$2 RETURNING room", [building, room]))[0];
     if (!row) return res.status(404).json({ error: "ไม่พบเลขห้อง" });
-    await audit(req.user, "settings.room.deactivate", `${building}/${room}`, null, req);
+    await audit(req.user, "settings.room.delete", `${building}/${room}`, null, req);
     res.json({ ok: true });
   });
   app.get("/api/users", auth, need("admin"), async (req, res) =>
